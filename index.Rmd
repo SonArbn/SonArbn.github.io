@@ -20,3 +20,230 @@ Hi Everyone my name is Arbnor. Welcome.
 
 
 I am very happy to welcome you.
+
+
+
+
+# Newspapers' sentiments and real world events
+
+## What really drives newspapers?
+
+During Covid anxiety was all over the place. People talked about the dangerous virus all the time and also newspapers reported a lot about Covid19. 
+
+A lot of people thought that maybe the media exaggerated the threat coming from the virus to get more views and clicks.
+
+So we wanted to check if the media really wanted to cause panic in the pandemic or if they tried to cover the objective hazard during the pandemic.
+
+So we wanted to look at two very different countries. One country should have been hit hard by Covid and the other one should have been spared by Covid. So we chose the US and Australia. They match a good comparison because both countries are English speaking and have a similair culture. The US had a lot of deaths and stuggled a lot during the pandemic. Australia almost had non deaths during Corona they really tried to isolate the virus so it could not spread. We used for the US the CNN news and for Australia the ABC news. We looked at the sentiments of the titles and compared them with the deathrate during the pandemic: 
+
+
+```{r}
+library(tidyr)
+library(tidyverse)
+library(tidytext)
+library(readr)
+library(stringr)
+library(RColorBrewer)
+library(dplyr)
+
+```
+
+
+
+
+```{r}
+cnn <- read_csv("/Users/arbnornokaj/Documents/NLP_2021Autumn/Project/CNN_Articels_clean.csv")
+```
+
+```{r}
+abc <- read.csv("/Users/arbnornokaj/Documents/NLP_2021Autumn/abcnews-date-text.csv")
+```
+
+
+
+
+```{r}
+library(readxl)
+
+covid_data = read_excel("/Users/arbnornokaj/Documents/NLP_2021Autumn/owid-covid-data.xlsx")
+
+covid_deaths = covid_data %>% select(date, location, new_deaths, new_deaths_smoothed, new_deaths_per_million, new_deaths_smoothed_per_million)
+
+aus_deaths = covid_deaths %>% filter(location == "Australia")
+
+usa_deaths = covid_deaths %>% filter(location == "United States")
+
+
+
+#whole procedure for australia:
+aus_deaths$Date = as.Date(as.character(aus_deaths$date))
+aus_deaths$week = as.Date(cut(aus_deaths$Date, breaks = "week"))
+
+aus_deaths = aus_deaths %>% select(week, location, new_deaths, new_deaths_smoothed, new_deaths_per_million, new_deaths_smoothed_per_million)
+
+aus_deaths = aus_deaths %>% group_by(week) %>% mutate(mean_deaths = mean(new_deaths_per_million))
+
+
+aus_deaths = aus_deaths[!duplicated(aus_deaths$week), ]
+
+#whole procedure for the US:
+usa_deaths$Date = as.Date(as.character(usa_deaths$date))
+usa_deaths$week = as.Date(cut(usa_deaths$Date, breaks = "week"))
+
+usa_deaths = usa_deaths %>% select(week, location, new_deaths, new_deaths_smoothed, new_deaths_per_million, new_deaths_smoothed_per_million)
+
+usa_deaths = usa_deaths %>% group_by(week) %>% mutate(mean_deaths = mean(new_deaths_per_million))
+
+
+usa_deaths = usa_deaths[!duplicated(usa_deaths$week), ]
+
+
+usa = usa_deaths %>% ggplot(mapping = aes(x = week, y = mean_deaths)) +
+  geom_point() +
+  geom_line(color = "green") +
+  ylab(label = "average deahts per million") +
+   scale_x_date(limits = as.Date(c("2021-01-01", "2022-01-01"))) +
+  theme_bw() +
+  ggtitle("US Covid deaths 2021") +
+  ylim(0,10)
+
+aus = aus_deaths %>% ggplot(mapping = aes(x = week, y = mean_deaths)) +
+  geom_point() +
+  geom_line(color = "grey") +
+  ylab(label = "average deahts per million") +
+   scale_x_date(limits = as.Date(c("2021-01-01", "2022-01-01"))) +
+  theme_bw() +
+  ggtitle("Australia Covid deaths 2021") +
+  ylim(0,10)
+
+
+
+```
+
+
+
+
+
+```{r}
+cnn <- cnn %>% select(`Date published`, Category, Headline)
+```
+
+
+
+
+
+```{r}
+cnn <- cnn %>% mutate(Date = as.Date(`Date published`))
+
+
+cnn <- cnn %>% select(Date, Category, Headline)
+
+
+cnn <- cnn %>% filter(Date >= "2020-01-01")  #during the pandemic
+
+
+```
+
+
+```{r}
+cnn$week = as.Date(cut(cnn$Date, breaks = "week"))
+
+cnn = cnn %>% select(week, Headline)
+```
+
+
+
+
+```{r}
+# first we have to change the number to date format:
+abc$publish_date = as.Date(as.character(abc$publish_date), format = "%Y%m%d")
+
+abc$week = as.Date(cut(abc$publish_date, breaks = "week"))
+
+abc = abc %>% select(week, headline_text)
+```
+
+
+
+
+
+
+
+```{r}
+regex <- "[:alpha:]+"
+# variable "word" must be set as the output. why? because of the later used command inner_join(). In order to combine two datasets inner_join() needs the same column in both datasets. In afinn the column where the words are listed is called "word". So we set the same name in our dataset.
+cnn_tokens<- cnn %>% unnest_tokens(output = word, input = Headline, token = "regex")
+
+abc_tokens <- abc %>% unnest_tokens(output = word, input = headline_text, token = "regex")
+```
+
+
+
+```{r}
+afinn <- get_sentiments("afinn")
+library(textdata)
+cnn_sentiments <- cnn_tokens %>% inner_join(afinn)
+
+abc_sentiments <- abc_tokens %>% inner_join(afinn)
+```
+
+
+
+```{r, eval=FALSE}
+mean(cnn_af_1_tokens_sentiments$value)
+
+mean(cnn_be_tokens_sentiments$value)
+
+sum(cnn_af_1_tokens_sentiments$value)
+
+sum(cnn_be_tokens_sentiments$value)
+```
+
+
+
+
+```{r}
+
+#calculate mean for every week
+cnn_1 <- cnn_sentiments %>% group_by(week) %>% mutate(value_mean = mean(value)) %>% select(week, value_mean)
+
+#remove duplicates
+cnn_1 = cnn_1[!duplicated(cnn_1$week), ]
+
+#calculate mean for every week
+abc_1 <- abc_sentiments %>% group_by(week) %>% mutate(value_mean = mean(value)) %>% select(week, value_mean)
+
+abc_1 = abc_1[!duplicated(abc_1$week), ]
+```
+
+
+```{r}
+
+
+cnnplot = cnn_1 %>% ggplot(mapping = aes(x = week, y = value_mean)) +
+  geom_point() +
+  geom_line(color = "skyblue") +
+  ylab(label = "Sentiment") +
+   scale_x_date(limits = as.Date(c("2021-01-01", "2022-01-01"))) +
+  theme_bw() +
+  ggtitle("CNN News Average Sentiments per Week in 2021") +
+  ylim(-2,2)
+
+library(patchwork)
+
+abcplot = abc_1 %>% ggplot(mapping = aes(x = week, y = value_mean)) +
+  geom_point() +
+  geom_line(color = "darkblue") +
+  ylab(label = "Sentiment") +
+   scale_x_date(limits = as.Date(c("2021-01-01", "2022-01-01"))) +
+  theme_bw() +
+  ggtitle("ABC News Average Sentiments per Week in 2021") +
+  ylim(-2,2)
+
+abcplot + cnnplot + aus + usa
+```
+
+
+What we can say is that Corona deaths during the pandemic is only one fuel to the sentiments. There have to be other factors that explain newspapers sentiments.
+
+Thank you very much for visiting my page :)
