@@ -45,6 +45,11 @@ library(readr)
 library(stringr)
 library(RColorBrewer)
 library(dplyr)
+library(readxl)
+library(patchwork)
+library(ggpubr)
+library(ggplot2)
+library(textdata)
 
 ```
 
@@ -245,5 +250,41 @@ abcplot + cnnplot + aus + usa
 
 
 What we can say is that Corona deaths during the pandemic is only one fuel to the sentiments. There have to be other factors that explain newspapers sentiments.
+
+
+So now we want to make some correlations to check the real relationship of sentiments and real world happenings:
+
+```{r}
+#first we choose only the relevant variables from the usa_deaths
+usa_av_deaths <- usa_deaths %>% select(week, mean_deaths)
+
+#then we hace to combine the two datasets "usa_av_deaths" and "cnn_1" with the command "rbind":
+new_dataframe <- rbind(usa_av_deaths, cnn_1)
+
+#Here we create a long format of the dataset because we want so we can later remove all the rows or better said "weeks" in which there are no value for the sentiments:
+new_dataframe <- new_dataframe %>% pivot_longer(!week, names_to = "method", values_to = "value")
+
+#Now we remove all rows that contain "NA". "NA" is a missing value. 
+new_dataframe <- na.omit(new_dataframe)
+
+#To correlate all the deaths and sentiments with each other we have to seperate those factors again to two variables/columns:
+new_dataframe = new_dataframe %>% pivot_wider(names_from = method, values_from = value)
+
+#Here we again delete rows with missing values:
+new_dataframe = na.omit(new_dataframe)
+
+correlation = new_dataframe %>% ggplot(mapping = aes(x=mean_deaths, y=value_mean)) + # "value_mean are the sentiments
+  geom_point() + 
+  geom_smooth(method = "lm") + # ("method = "lm")" means, method used is linear model. You can choose also other statistical methods.
+  stat_cor(method = "pearson") + 
+  ggtitle("Correlation Covid-Deaths ~ CNN Sentiments") +
+  xlab("Average Covid-Deaths per million") +
+  ylab("Average CNN Sentiments") +
+  theme_bw() #this makes the background black and white
+
+correlation
+```
+
+So we can see that the correlation is very small. We must find other variables that explain sentiments better!
 
 Thank you very much for visiting my page :)
